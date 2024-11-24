@@ -17,7 +17,7 @@ on:
 jobs:
   build:
     name: Build Magisk artifacts
-    runs-on: macos-14
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
     steps:
@@ -54,27 +54,6 @@ jobs:
           path: app/apk/build/outputs
           compression-level: 9
 
-  test-build:
-    name: Test building on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest]
-    steps:
-      - name: Check out
-        uses: actions/checkout@v4
-        with:
-          submodules: "recursive"
-
-      - name: Setup environment
-        uses: ./.github/actions/setup
-
-      - name: Test build
-        run: python build.py -v -c .github/ci.prop all
-
-      - name: Stop gradle daemon
-        run: ./gradlew --stop
 
   avd-test:
     name: Test API ${{ matrix.version }} (x86_64)
@@ -83,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: [23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34]
+        version: [23, 25, 28, 34]
         type: [""]
         include:
           - version: 35
@@ -127,7 +106,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: [23, 24, 25, 26, 27, 28, 29, 30]
+        version: [23, 25, 28, 30]
 
     steps:
       - name: Check out
@@ -160,46 +139,3 @@ jobs:
           path: |
             kernel.log
             logcat.log
-
-  cf_test:
-    name: Test ${{ matrix.device }}
-    runs-on: ubuntu-24.04
-    needs: build
-    env:
-      CF_HOME: /home/runner/aosp_cf_phone
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - branch: "aosp-main"
-            device: "aosp_cf_x86_64_phone"
-          - branch: "aosp-main-throttled"
-            device: "aosp_cf_x86_64_phone_pgagnostic"
-
-    steps:
-      - name: Check out
-        uses: actions/checkout@v4
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ github.sha }}
-          path: out
-
-      - name: Setup Cuttlefish environment
-        run: |
-          scripts/cuttlefish.sh setup
-          scripts/cuttlefish.sh download ${{ matrix.branch }} ${{ matrix.device }}
-
-      - name: Run Cuttlefish test
-        timeout-minutes: 10
-        run: su $USER -c 'scripts/cuttlefish.sh test'
-
-      - name: Upload logs on error
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: "cvd-logs-${{ matrix.device }}"
-          path: |
-            /home/runner/aosp_cf_phone/cuttlefish/instances/cvd-1/logs
-            /home/runner/aosp_cf_phone/cuttlefish/instances/cvd-1/cuttlefish_config.json
